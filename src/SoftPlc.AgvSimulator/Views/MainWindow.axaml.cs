@@ -18,7 +18,7 @@ public partial class MainWindow : Window
         DataContext = _vm;
 
         // Update S7 status text based on whether S7 layer is present
-        _vm.S7Status = App.S7 is not null ? "port 102" : "unavailable";
+        _vm.S7Status = App.S7 is not null ? $"port {App.S7.Port}" : "unavailable";
 
         // Refresh UI at 4 Hz (250ms)
         _timer = new DispatcherTimer { Interval = System.TimeSpan.FromMilliseconds(250) };

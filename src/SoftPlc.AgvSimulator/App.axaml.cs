@@ -56,19 +56,20 @@ public class App : Application
             S7 = new S7ServerLayer(Engine.Memory, maxClients: 3);
             S7.RegisterDataBlock(Db172Map.DbNumber, Db172Map.DbSize);
 
-            // Ensure firewall rule exists before starting
-            EnsureFirewallRule();
-
-            var rc = S7.Start();
+            var rc = S7.Start();  // auto-selects port 102, or 1102 if 102 is occupied
             if (rc != 0)
             {
                 Log.Warning("[AGV] S7Server error code={Code}", rc);
             }
             else
             {
-                Log.Information("[AGV] S7Server listening on port 102");
-                // Loopback self-test: verify TCP port 102 is reachable
-                VerifyS7Port();
+                Log.Information("[AGV] S7Server listening on port {Port}", S7.Port);
+                if (S7.Port != 102)
+                    Log.Warning("[AGV] Port 102 was occupied (Siemens service?), using port {Port} instead", S7.Port);
+                // Ensure firewall rule for the actual port
+                EnsureFirewallRule(S7.Port);
+                // Loopback self-test
+                VerifyS7Port(S7.Port);
             }
         }
         catch (Exception ex)
@@ -105,39 +106,40 @@ public class App : Application
 
     // ── Firewall helper ─────────────────────────────────────────────────────
     /// <summary>
-    /// Creates a Windows Firewall inbound rule for TCP port 102 (S7comm).
+    /// Creates a Windows Firewall inbound rule for the given TCP port.
     /// Runs silently – if not elevated, it logs a warning with manual instructions.
     /// </summary>
-    private static void EnsureFirewallRule()
+    private static void EnsureFirewallRule(int port)
     {
         if (!OperatingSystem.IsWindows()) return;
 
+        var ruleName = $"SoftPLC S7 Port {port}";
         try
         {
             // Check if rule already exists
-            var check = RunNetsh("advfirewall firewall show rule name=\"SoftPLC S7 Port 102\"");
-            if (check.Contains("SoftPLC S7 Port 102", StringComparison.OrdinalIgnoreCase))
+            var check = RunNetsh($"advfirewall firewall show rule name=\"{ruleName}\"");
+            if (check.Contains(ruleName, StringComparison.OrdinalIgnoreCase))
             {
-                Log.Debug("[AGV] Firewall rule 'SoftPLC S7 Port 102' already exists");
+                Log.Debug("[AGV] Firewall rule '{Rule}' already exists", ruleName);
                 return;
             }
 
             // Try to create the rule (requires elevation)
             var result = RunNetsh(
-                "advfirewall firewall add rule " +
-                "name=\"SoftPLC S7 Port 102\" " +
-                "dir=in action=allow protocol=TCP localport=102 " +
-                "profile=any enable=yes");
+                $"advfirewall firewall add rule " +
+                $"name=\"{ruleName}\" " +
+                $"dir=in action=allow protocol=TCP localport={port} " +
+                $"profile=any enable=yes");
 
             if (result.Contains("Ok", StringComparison.OrdinalIgnoreCase))
             {
-                Log.Information("[AGV] Firewall rule created: allow TCP inbound port 102");
+                Log.Information("[AGV] Firewall rule created: allow TCP inbound port {Port}", port);
             }
             else
             {
                 Log.Warning("[AGV] Could not create firewall rule (need admin). " +
                     "Run manually: netsh advfirewall firewall add rule " +
-                    "name=\"SoftPLC S7 Port 102\" dir=in action=allow protocol=TCP localport=102");
+                    $"name=\"{ruleName}\" dir=in action=allow protocol=TCP localport={port}");
             }
         }
         catch (Exception ex)
@@ -165,9 +167,9 @@ public class App : Application
 
     // ── Loopback self-test ──────────────────────────────────────────────────
     /// <summary>
-    /// Verify TCP port 102 is actually listening by doing a quick loopback connect.
+    /// Verify TCP port is actually listening by doing a quick loopback connect.
     /// </summary>
-    private static void VerifyS7Port()
+    private static void VerifyS7Port(int port)
     {
         Task.Run(async () =>
         {
@@ -176,13 +178,13 @@ public class App : Application
             try
             {
                 using var tcp = new TcpClient();
-                await tcp.ConnectAsync("127.0.0.1", 102).WaitAsync(TimeSpan.FromSeconds(3));
-                Log.Information("[AGV] S7 loopback test OK – TCP port 102 is reachable");
+                await tcp.ConnectAsync("127.0.0.1", port).WaitAsync(TimeSpan.FromSeconds(3));
+                Log.Information("[AGV] S7 loopback test OK – TCP port {Port} is reachable", port);
             }
             catch (Exception ex)
             {
-                Log.Error("[AGV] S7 loopback test FAILED – TCP port 102 not reachable: {Msg}. " +
-                    "The S7 server may not be binding correctly.", ex.Message);
+                Log.Error("[AGV] S7 loopback test FAILED – TCP port {Port} not reachable: {Msg}. " +
+                    "The S7 server may not be binding correctly.", port, ex.Message);
             }
         });
     }

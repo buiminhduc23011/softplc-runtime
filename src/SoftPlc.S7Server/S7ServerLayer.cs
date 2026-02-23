@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using Serilog;
 using Snap7;
@@ -36,6 +38,11 @@ public sealed class S7ServerLayer : IDisposable
 
     // ── Events callback (keep alive to avoid GC collection) ──────────────────
     private readonly Snap7.S7Server.TSrvCallback _eventsCallback;
+
+    // ── Port ──────────────────────────────────────────────────────────────────
+    private int _port = 102;
+    /// <summary>The TCP port the S7 server is listening on.</summary>
+    public int Port => _port;
 
     // ── Connection tracking ───────────────────────────────────────────────────
     public int ClientsCount => _server.ClientsCount;
@@ -81,15 +88,43 @@ public sealed class S7ServerLayer : IDisposable
     // ── Public API ────────────────────────────────────────────────────────────
     // ────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Start listening on a local IP address (default: all interfaces).</summary>
-    public int Start(string address = "0.0.0.0")
+    /// <summary>Start listening on a local IP address and port.</summary>
+    /// <param name="address">Bind address (default: all interfaces).</param>
+    /// <param name="port">TCP port (default: 102). If 0, auto-selects 102 or 1102 if 102 is occupied.</param>
+    public int Start(string address = "0.0.0.0", int port = 0)
     {
+        if (port <= 0)
+            port = IsPortAvailable(102) ? 102 : 1102;
+
+        _port = port;
+
+        // Set local port via Snap7 param p_u16_LocalPort = 1
+        int portValue = port;
+        _server.SetParam(1 /* p_u16_LocalPort */, ref portValue);
+
         var result = _server.StartTo(address);
         if (result == 0)
-            Log.Information("[S7Server] Started on {Address}:102 (MaxClients={Max})", address, 3);
+            Log.Information("[S7Server] Started on {Address}:{Port} (MaxClients={Max})",
+                address, port, 3);
         else
-            Log.Error("[S7Server] Start failed, error code={Code}", result);
+            Log.Error("[S7Server] Start failed on port {Port}, error code={Code}", port, result);
         return result;
+    }
+
+    /// <summary>Check if a TCP port is available (not already in LISTEN state).</summary>
+    private static bool IsPortAvailable(int port)
+    {
+        try
+        {
+            using var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Start();
+            listener.Stop();
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Stop the server.</summary>
