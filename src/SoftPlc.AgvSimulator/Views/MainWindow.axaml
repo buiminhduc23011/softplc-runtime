@@ -170,7 +170,7 @@
         <TabControl Margin="10,8,10,4" Background="Transparent">
 
             <!-- TAB 1 - INPUTS -->
-            <TabItem Header="  INPUT  (AGV > PLC)  ">
+            <TabItem Header="  INPUT">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" Padding="2,6">
                     <StackPanel Margin="4,0" Spacing="0">
 
@@ -564,7 +564,7 @@
             </TabItem>
 
             <!-- TAB 2 - OUTPUTS -->
-            <TabItem Header="  OUTPUT  (PLC > AGV)  ">
+            <TabItem Header="OUTPUT">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" Padding="2,6">
                     <StackPanel Margin="4,0" Spacing="0">
 
