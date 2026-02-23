@@ -1,0 +1,107 @@
+# Windows noise
+desktop.ini
+Thumbs.db
+ehthumbs.db
+
+# Visual Studio folder
+.vs/
+.vscode/
+
+# Build outputs
+bin/
+obj/
+build/
+logs/
+out/
+artifacts/
+
+# Common build configs
+Debug/
+Release/
+x64/
+x86/
+ARM/
+ARM64/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code
+*.code-workspace
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+**/packages/*
+
+# Backup / temp files
+*.bak
+*.tmp
+*.temp
+*.db
+*.md
+~*
+
+# Cache
+*.cache
+*.log
+*.sdf
+*.dbmdl
+
+# Publish output
+publish/
+*.pubxml
+*.pubxml.user
+
+# Rider / JetBrains
+.idea/
+*.DotSettings.user
+
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings
+
+# Test results
+TestResult*/
+TestResults/
+
+# Generated files
+Generated*/
+*.g.cs
+*.g.i.cs
+
+# IIS Express
+IISExpress/
+iisexpress/
+
+# StyleCop
+StyleCopReport.xml
+
+# Entity Framework
+*_migration.cs
+Migrations/
+
+# Local configs
+appsettings.Local.json
+appsettings.Development.json
+
+# Python in project 
+__pycache__/
+
+# NodeJS inside project (client)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# пакет .NET Tool manifest
+.dotnet_tools/
+
+# Logs
+*.log
+logs/

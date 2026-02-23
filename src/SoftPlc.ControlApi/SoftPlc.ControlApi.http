@@ -1,0 +1,6 @@
+@SoftPlc.ControlApi_HostAddress = http://localhost:5090
+
+GET {{SoftPlc.ControlApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
