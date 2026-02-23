@@ -1,0 +1,14 @@
+.git
+.vs
+.vscode
+.idea
+bin
+obj
+publish
+native/snap7-full-*
+native/tmp*
+*.7z
+*.user
+*.suo
+logs
+*.log

@@ -109,6 +109,9 @@ logs/
 # Root-level native DLLs (test artifacts)
 /*.dll
 
+# snap7 build temp (build-linux.sh)
+.snap7-build/
+
 # Keep native/ folder tracked (64-bit snap7 DLLs)
 !native/
 !native/**
