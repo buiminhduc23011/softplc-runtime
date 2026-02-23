@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    After every build, overwrite the 32-bit snap7.dll (shipped by Snap7Server.Net NuGet)
+    with our 64-bit build from native\win-x64\.
+    This applies to ALL projects in the solution automatically.
+  -->
+  <PropertyGroup>
+    <Snap7_64bit>$(MSBuildThisFileDirectory)native\win-x64\snap7.dll</Snap7_64bit>
+  </PropertyGroup>
+
+  <Target Name="OverwriteSnap7With64"
+          AfterTargets="Build"
+          Condition="Exists('$(OutputPath)snap7.dll') AND Exists('$(Snap7_64bit)')">
+    <Copy SourceFiles="$(Snap7_64bit)"
+          DestinationFiles="$(OutputPath)snap7.dll"
+          OverwriteReadOnlyFiles="true" />
+    <Message Importance="high"
+             Text="[snap7] Replaced 32-bit snap7.dll with 64-bit in $(OutputPath)" />
+  </Target>
+</Project>

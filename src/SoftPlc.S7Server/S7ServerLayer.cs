@@ -29,6 +29,7 @@ public sealed class S7ServerLayer : IDisposable
     // ── DB buffers ────────────────────────────────────────────────────────────
     private readonly Dictionary<int, byte[]>    _dbBuffers = new();
     private readonly Dictionary<int, GCHandle>  _dbPins    = new();
+    private readonly Dictionary<int, byte[]>    _dbShadow  = new();  // last-synced snapshot for merge
 
     // ── Sync timer ────────────────────────────────────────────────────────────
     private readonly Timer _syncTimer;
@@ -115,6 +116,7 @@ public sealed class S7ServerLayer : IDisposable
         var pin    = GCHandle.Alloc(buf, GCHandleType.Pinned);
         _dbBuffers[dbNumber] = buf;
         _dbPins[dbNumber]    = pin;
+        _dbShadow[dbNumber]  = new byte[size];
 
         _server.RegisterArea(Snap7.S7Server.srvAreaDB, dbNumber, ref buf[0], size);
         Log.Information("[S7Server] Registered DB{Db} ({Size} bytes)", dbNumber, size);
@@ -185,23 +187,55 @@ public sealed class S7ServerLayer : IDisposable
         _server.UnlockArea(Snap7.S7Server.srvAreaMK, 0);
     }
 
-    /// <summary>Sync each registered DB: snap7 buffer ↔ PlcMemory.</summary>
+    /// <summary>
+    /// Sync each registered DB: snap7 buffer ↔ PlcMemory via shadow-merge.
+    /// A shadow buffer stores the last-synced state. Changes on either side
+    /// (PlcMemory or snap7) are detected byte-by-byte vs the shadow;
+    /// local (PlcMemory / ViewModel) writes take priority on conflict.
+    /// </summary>
     private void SyncDataBlocks()
     {
-        foreach (var (dbNum, buf) in _dbBuffers)
+        foreach (var (dbNum, snap7Buf) in _dbBuffers)
         {
-            // Pull snap7 → PlcMemory
-            _server.LockArea(Snap7.S7Server.srvAreaDB, dbNum);
-            var snapshot = new byte[buf.Length];
-            Buffer.BlockCopy(buf, 0, snapshot, 0, snapshot.Length);
-            _server.UnlockArea(Snap7.S7Server.srvAreaDB, dbNum);
-            _memory.WriteDbArea(dbNum, 0, snapshot);
+            var size = snap7Buf.Length;
 
-            // Push PlcMemory → snap7
-            var fromMemory = _memory.ReadDbArea(dbNum, 0, buf.Length);
+            // 1. Read current snap7 state
             _server.LockArea(Snap7.S7Server.srvAreaDB, dbNum);
-            Buffer.BlockCopy(fromMemory, 0, buf, 0, fromMemory.Length);
+            var snap7Data = new byte[size];
+            Buffer.BlockCopy(snap7Buf, 0, snap7Data, 0, size);
             _server.UnlockArea(Snap7.S7Server.srvAreaDB, dbNum);
+
+            // 2. Read current PlcMemory state
+            var memData = _memory.ReadDbArea(dbNum, 0, size);
+
+            // 3. Get shadow (last-synced snapshot)
+            var shadow = _dbShadow[dbNum];
+
+            // 4. Merge byte-by-byte
+            var merged = new byte[size];
+            for (int i = 0; i < size; i++)
+            {
+                bool memChanged  = memData[i]   != shadow[i];
+                bool snap7Changed = snap7Data[i] != shadow[i];
+
+                if (memChanged)
+                    merged[i] = memData[i];     // local (ViewModel) wins
+                else if (snap7Changed)
+                    merged[i] = snap7Data[i];   // remote (S7 client) wins
+                else
+                    merged[i] = shadow[i];      // no change
+            }
+
+            // 5. Push merged result to snap7
+            _server.LockArea(Snap7.S7Server.srvAreaDB, dbNum);
+            Buffer.BlockCopy(merged, 0, snap7Buf, 0, size);
+            _server.UnlockArea(Snap7.S7Server.srvAreaDB, dbNum);
+
+            // 6. Push merged result to PlcMemory
+            _memory.WriteDbArea(dbNum, 0, merged);
+
+            // 7. Update shadow
+            Buffer.BlockCopy(merged, 0, shadow, 0, size);
         }
     }
 
@@ -244,5 +278,6 @@ public sealed class S7ServerLayer : IDisposable
         foreach (var h in _dbPins.Values) h.Free();
         _dbPins.Clear();
         _dbBuffers.Clear();
+        _dbShadow.Clear();
     }
 }

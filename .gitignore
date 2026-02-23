@@ -108,3 +108,7 @@ logs/
 
 # Root-level native DLLs (test artifacts)
 /*.dll
+
+# Keep native/ folder tracked (64-bit snap7 DLLs)
+!native/
+!native/**
