@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using SoftPlc.Core;
+using SoftPlc.S7Server;
 
 namespace SoftPlc.ControlApi;
 
@@ -117,12 +119,39 @@ public static class ControlApiEndpoints
         });
 
         // ── DB management ────────────────────────────────────────────────────────
-        app.MapPost("/memory/db/{id:int}/create", (PlcEngine engine, int id, int size = 256) =>
+        // Creates DB in PlcMemory AND registers it in the S7 server layer (if available).
+        // After this call S7 clients can immediately read/write the new DB.
+        app.MapPost("/memory/db/{id:int}/create",
+            (PlcEngine engine, IServiceProvider sp, int id, int size = 256) =>
         {
             if (size < 1 || size > 65535)
                 return Results.BadRequest("size must be 1..65535");
+
+            if (engine.Memory.DataBlockExists(id))
+                return Results.Conflict($"DB{id} already exists");
+
+            // Register in PlcMemory
             engine.Memory.CreateDataBlock(id, size);
-            return Results.Ok(new { DB = id, Size = size, Status = "created" });
+
+            // Register in S7 server so remote clients can access it
+            var s7 = sp.GetService<S7ServerLayer>();
+            s7?.RegisterDataBlock(id, size);
+
+            return Results.Ok(new
+            {
+                DB     = id,
+                Size   = size,
+                Status = s7 is not null ? "created+s7registered" : "created (no S7 layer)"
+            });
+        });
+
+        // ── List all registered DBs ──────────────────────────────────────────────
+        app.MapGet("/memory/db", (PlcEngine engine) =>
+        {
+            var dbs = engine.Memory.GetDataBlockNumbers()
+                .OrderBy(n => n)
+                .Select(n => new { DB = n, Size = engine.Memory.GetDataBlockSize(n) });
+            return Results.Ok(dbs);
         });
 
         return app;

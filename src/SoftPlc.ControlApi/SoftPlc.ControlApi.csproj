@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SoftPlc.Core\SoftPlc.Core.csproj" />
+    <ProjectReference Include="..\SoftPlc.S7Server\SoftPlc.S7Server.csproj" />
   </ItemGroup>
 
 </Project>
