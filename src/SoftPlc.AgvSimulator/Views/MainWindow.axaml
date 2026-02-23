@@ -1,0 +1,707 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SoftPlc.AgvSimulator.ViewModels"
+        x:Class="SoftPlc.AgvSimulator.Views.MainWindow"
+        Title="AGV Simulator – SoftPLC DB172"
+        Width="1100" Height="780"
+        MinWidth="900" MinHeight="600"
+        Background="#1E1E2E">
+
+    <Window.Styles>
+        <!-- Section header -->
+        <Style Selector="TextBlock.sectionHeader">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#A0A8D0"/>
+            <Setter Property="Margin" Value="0,12,0,4"/>
+        </Style>
+        <!-- Row label -->
+        <Style Selector="TextBlock.label">
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Width" Value="160"/>
+        </Style>
+        <!-- Offset badge -->
+        <Style Selector="TextBlock.offset">
+            <Setter Property="Foreground" Value="#585B70"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Width" Value="55"/>
+            <Setter Property="FontFamily" Value="Consolas,Monospace"/>
+        </Style>
+        <!-- Note -->
+        <Style Selector="TextBlock.note">
+            <Setter Property="Foreground" Value="#6C7086"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
+        <!-- Numeric input -->
+        <Style Selector="NumericUpDown">
+            <Setter Property="Width" Value="110"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <!-- Toggle -->
+        <Style Selector="ToggleButton.signal">
+            <Setter Property="Width" Value="110"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ToggleButton.signal:checked">
+            <Setter Property="Background" Value="#A6E3A1"/>
+            <Setter Property="Foreground" Value="#1E1E2E"/>
+        </Style>
+        <Style Selector="ToggleButton.signal:unchecked">
+            <Setter Property="Background" Value="#45475A"/>
+            <Setter Property="Foreground" Value="#CDD6F4"/>
+        </Style>
+        <!-- ComboBox -->
+        <Style Selector="ComboBox">
+            <Setter Property="Width" Value="220"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <!-- Divider -->
+        <Style Selector="Separator">
+            <Setter Property="Background" Value="#313244"/>
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Margin" Value="0,3"/>
+        </Style>
+        <!-- Stat chip -->
+        <Style Selector="Border.statChip">
+            <Setter Property="Background" Value="#313244"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- ── Status bar ───────────────────────────────────────────────── -->
+        <Border DockPanel.Dock="Bottom" Background="#181825" Padding="12,6">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Border Classes="statChip">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="CPU" Foreground="#585B70" FontSize="11"/>
+                        <TextBlock x:Name="TbCpuState" Text="{Binding CpuState}"
+                                   FontWeight="Bold" FontSize="11" Foreground="#A6E3A1"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="statChip">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Cycle" Foreground="#585B70" FontSize="11"/>
+                        <TextBlock Text="{Binding ScanCycle}" FontSize="11" Foreground="#CDD6F4"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="statChip">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Scan" Foreground="#585B70" FontSize="11"/>
+                        <TextBlock Text="{Binding LastScanUs, StringFormat='{}{0}µs'}"
+                                   FontSize="11" Foreground="#CDD6F4"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="statChip">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Overruns" Foreground="#585B70" FontSize="11"/>
+                        <TextBlock Text="{Binding OverrunCount}" FontSize="11" Foreground="#FAB387"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="statChip">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="S7" Foreground="#585B70" FontSize="11"/>
+                        <TextBlock Text="{Binding S7Status}" FontSize="11" Foreground="#89DCEB"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="statChip">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="API" Foreground="#585B70" FontSize="11"/>
+                        <TextBlock Text="http://localhost:15000" FontSize="11" Foreground="#89B4FA"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Title bar ────────────────────────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Background="#181825" Padding="16,10">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock Text="🤖 AGV Simulator" FontSize="18" FontWeight="Bold"
+                           Foreground="#CDD6F4" VerticalAlignment="Center"/>
+                <TextBlock Text="DB172 · SoftPLC S7-Compatible"
+                           FontSize="12" Foreground="#585B70" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Main tabs ─────────────────────────────────────────────────── -->
+        <TabControl Margin="8" Background="Transparent">
+
+            <!-- ════════════════════════════════════════════════════════════
+                 TAB 1 – INPUT SIGNALS (AGV → SoftPLC, simulator writes)
+                 ════════════════════════════════════════════════════════════ -->
+            <TabItem Header="📥  AGV → PLC  (Inputs)">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="12,8" Spacing="2">
+
+                        <!-- ON/OFF & START -->
+                        <TextBlock Classes="sectionHeader" Text="⚡  Power &amp; Control"/>
+                        <Separator/>
+
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="ON/OFF"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.0.0"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding OnOff, Mode=TwoWay}"
+                                         Content="{Binding OnOff, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Nút bật/tắt AGV"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="START"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.0.1"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding Start, Mode=TwoWay}"
+                                         Content="{Binding Start, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Nút khởi động AGV"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="CLEAR ERROR"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.0.2"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding ClearError, Mode=TwoWay}"
+                                         Content="{Binding ClearError, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Nút xóa lỗi cứng"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SAFETY RELAY"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.0.3"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding SafetyRelay, Mode=TwoWay}"
+                                         Content="{Binding SafetyRelay, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Trạng thái EMG relay"/>
+                        </Grid>
+
+                        <!-- Power -->
+                        <TextBlock Classes="sectionHeader" Text="🔋  Power Readings"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="VALUE VOLTAGE (V)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.2"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding ValueVoltage, Mode=TwoWay}"
+                                          Minimum="0" Maximum="100" Increment="0.1"
+                                          FormatString="F2"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="float · Điện áp pin"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="VALUE CURRENT (A)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.6"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding ValueCurrent, Mode=TwoWay}"
+                                          Minimum="-50" Maximum="50" Increment="0.1"
+                                          FormatString="F2"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="float · Dòng sạc"/>
+                        </Grid>
+
+                        <!-- Safety -->
+                        <TextBlock Classes="sectionHeader" Text="🛡️  Safety Signals"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SIGNAL EMGS"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.10"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SignalEmgs, Mode=TwoWay}"
+                                          Minimum="-32768" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int16 bit array · Các nút EMG"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SIGNAL BUMPER"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.12"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SignalBumper, Mode=TwoWay}"
+                                          Minimum="-32768" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int16 bit array · Các bumper"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="STATUS SENSOR"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.14"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding StatusSensor, Mode=TwoWay}"
+                                          Minimum="-32768" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int16 bit array · Cảm biến on/off"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SAFETY ZONE 1"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.16"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SafetyZone1, Mode=TwoWay}"
+                                          Minimum="-32768" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int16 bit array · Vùng an toàn 1"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SAFETY ZONE 2"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.18"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SafetyZone2, Mode=TwoWay}"
+                                          Minimum="-32768" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int16 bit array · Vùng an toàn 2"/>
+                        </Grid>
+
+                        <!-- RFID -->
+                        <TextBlock Classes="sectionHeader" Text="📡  RFID"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="STATUS RFID"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.20"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding StatusRfid, Mode=TwoWay}"
+                                          Minimum="-1" Maximum="1"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="-1=lỗi đọc · 0=ngoài vùng · 1=trong vùng"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="CODE RFID"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.22"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding CodeRfid, Mode=TwoWay}"
+                                          Minimum="0" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mã thẻ RFID hiện tại"/>
+                        </Grid>
+
+                        <!-- MAGLINE -->
+                        <TextBlock Classes="sectionHeader" Text="🧲  MAGLINE"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="STATUS MAGLINE"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.24"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding StatusMagline, Mode=TwoWay}"
+                                          Minimum="-1" Maximum="1"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="-1=lỗi/chưa kết nối · 1=bình thường"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="VALUE MAGLINE"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.26"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding ValueMagline, Mode=TwoWay}"
+                                          Minimum="-32768" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int16 bit array · Mảng bit line từ"/>
+                        </Grid>
+
+                        <!-- Motor 1 -->
+                        <TextBlock Classes="sectionHeader" Text="⚙️  Motor 1 (Bánh Trái)"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="STATUS MOTOR 1"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.28"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding StatusMotor1, Mode=TwoWay}"
+                                          Minimum="-1" Maximum="1"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="-1=chưa kết nối · 1=giao tiếp bình thường"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="WARN MOTOR 1"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.30"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding WarnMotor1, Mode=TwoWay}"
+                                          Minimum="0" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mã code cảnh báo từ động cơ"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="ERROR MOTOR 1"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.32"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding ErrorMotor1, Mode=TwoWay}"
+                                          Minimum="0" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mã code lỗi từ động cơ"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SPEED 1 (rpm)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.34"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding Speed1, Mode=TwoWay}"
+                                          Minimum="-5000" Maximum="5000"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Tốc độ hiện tại động cơ"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="VALUE ENCODER 1"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.36"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding ValueEncoder1, Mode=TwoWay}"
+                                          Minimum="-2147483648" Maximum="2147483647"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int32 · Giá trị encoder"/>
+                        </Grid>
+
+                        <!-- Motor 2 -->
+                        <TextBlock Classes="sectionHeader" Text="⚙️  Motor 2 (Bánh Phải)"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="STATUS MOTOR 2"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.40"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding StatusMotor2, Mode=TwoWay}"
+                                          Minimum="-1" Maximum="1"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="-1=chưa kết nối · 1=bình thường"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="WARN MOTOR 2"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.42"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding WarnMotor2, Mode=TwoWay}"
+                                          Minimum="0" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mã code cảnh báo"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="ERROR MOTOR 2"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.44"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding ErrorMotor2, Mode=TwoWay}"
+                                          Minimum="0" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mã code lỗi"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SPEED 2 (rpm)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.46"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding Speed2, Mode=TwoWay}"
+                                          Minimum="-5000" Maximum="5000"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Tốc độ hiện tại động cơ"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="VALUE ENCODER 2"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.48"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding ValueEncoder2, Mode=TwoWay}"
+                                          Minimum="-2147483648" Maximum="2147483647"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="int32 · Giá trị encoder"/>
+                        </Grid>
+
+                        <!-- Motion feedback -->
+                        <TextBlock Classes="sectionHeader" Text="🚗  Motion Feedback"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,220,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="MOVE MOVE (in)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.52"/>
+                            <ComboBox Grid.Column="2"
+                                      SelectedIndex="{Binding MoveMoveIn, Mode=TwoWay}">
+                                <ComboBoxItem Content="0 – Dừng"/>
+                                <ComboBoxItem Content="1 – Tiến theo line"/>
+                                <ComboBoxItem Content="2 – Lùi theo line"/>
+                                <ComboBoxItem Content="3 – Xoay trái 90"/>
+                                <ComboBoxItem Content="4 – Xoay phải 90"/>
+                                <ComboBoxItem Content="5 – Xoay 180"/>
+                                <ComboBoxItem Content="6 – Tiến dừng vạch ngang"/>
+                                <ComboBoxItem Content="7 – Lùi dừng vạch ngang"/>
+                                <ComboBoxItem Content="8 – Tiến dừng thẻ"/>
+                                <ComboBoxItem Content="9 – Lùi dừng thẻ"/>
+                                <ComboBoxItem Content="10 – Tiến tự do"/>
+                                <ComboBoxItem Content="11 – Lùi tự do"/>
+                                <ComboBoxItem Content="12 – Xoay trái tự do"/>
+                                <ComboBoxItem Content="13 – Xoay phải tự do"/>
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mode di chuyển đang chấp hành"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="STATUS MOVE"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.54"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding StatusMove, Mode=TwoWay}"
+                                          Minimum="0" Maximum="32767"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Trạng thái di chuyển"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,220,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="MODE LIFT (in)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.56"/>
+                            <ComboBox Grid.Column="2"
+                                      SelectedIndex="{Binding ModeLiftIn, Mode=TwoWay}">
+                                <ComboBoxItem Content="0 – Dừng/Reset"/>
+                                <ComboBoxItem Content="1 – Nâng"/>
+                                <ComboBoxItem Content="2 – Hạ"/>
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mode bàn nâng đang chấp hành"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,220,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="STATUS LIFT"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.58"/>
+                            <ComboBox Grid.Column="2"
+                                      SelectedIndex="{Binding StatusLift, Mode=TwoWay}">
+                                <ComboBoxItem Content="0 – Dừng/Reset"/>
+                                <ComboBoxItem Content="1 – Đang thực hiện"/>
+                                <ComboBoxItem Content="2 – Lỗi time out"/>
+                                <ComboBoxItem Content="3 – Lỗi khác (3)"/>
+                                <ComboBoxItem Content="4 – Lỗi khác (4)"/>
+                                <ComboBoxItem Content="5 – Hoàn thành nâng"/>
+                                <ComboBoxItem Content="6 – Hoàn thành hạ"/>
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Trạng thái thực hiện mode yêu cầu"/>
+                        </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ════════════════════════════════════════════════════════════
+                 TAB 2 – OUTPUT SIGNALS (SoftPLC → AGV, PLC/S7 writes)
+                 ════════════════════════════════════════════════════════════ -->
+            <TabItem Header="📤  PLC → AGV  (Outputs)">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="12,8" Spacing="2">
+
+                        <!-- Bool outputs -->
+                        <TextBlock Classes="sectionHeader" Text="🔴  Điều khiển On/Off"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="WRITE EMG"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.60.0"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding WriteEmg, Mode=TwoWay}"
+                                         Content="{Binding WriteEmg, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Kích hoạt EMG"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="RESET"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.60.1"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding Reset, Mode=TwoWay}"
+                                         Content="{Binding Reset, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Reset EMG"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="CHARGE"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.60.2"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding Charge, Mode=TwoWay}"
+                                         Content="{Binding Charge, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Bật/tắt sạc"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="BRAKE"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.60.3"/>
+                            <ToggleButton Grid.Column="2" Classes="signal"
+                                         IsChecked="{Binding Brake, Mode=TwoWay}"
+                                         Content="{Binding Brake, StringFormat='{}{0}'}"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Bật/tắt phanh"/>
+                        </Grid>
+
+                        <!-- Peripherals -->
+                        <TextBlock Classes="sectionHeader" Text="🔊  Thiết bị ngoại vi"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SOUND"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.62"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding Sound, Mode=TwoWay}"
+                                          Minimum="0" Maximum="10"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="0=tắt · 1-10=mode âm thanh"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="LIGHT"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.64"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding Light, Mode=TwoWay}"
+                                          Minimum="0" Maximum="10"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="0=tắt · 1-10=mode led"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="FIELD SET 1"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.66"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding FieldSet1, Mode=TwoWay}"
+                                          Minimum="0" Maximum="10"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="0=tắt · 1-10=vùng yêu cầu SICK"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="FIELD SET 2"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.68"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding FieldSet2, Mode=TwoWay}"
+                                          Minimum="0" Maximum="10"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="0=tắt · 1-10=vùng yêu cầu SICK"/>
+                        </Grid>
+
+                        <!-- Motion commands -->
+                        <TextBlock Classes="sectionHeader" Text="🚗  Điều khiển di chuyển"/>
+                        <Separator/>
+                        <Grid ColumnDefinitions="160,55,220,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="CONTROL MOTION"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.70"/>
+                            <ComboBox Grid.Column="2"
+                                      SelectedIndex="{Binding ControlMotion, Mode=TwoWay}">
+                                <ComboBoxItem Content="0 – Không điều khiển"/>
+                                <ComboBoxItem Content="1 – Điều khiển mode cụ thể"/>
+                                <ComboBoxItem Content="2 – Vận tốc từ PC"/>
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Chế độ điều khiển chuyển động"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SPEED MOTOR 1"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.72"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SpeedMotor1, Mode=TwoWay}"
+                                          Minimum="-5000" Maximum="5000"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Vận tốc bánh trái"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SPEED MOTOR 2"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.74"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SpeedMotor2, Mode=TwoWay}"
+                                          Minimum="-5000" Maximum="5000"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Vận tốc bánh phải"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,220,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="MOVE MOVE (out)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.76"/>
+                            <ComboBox Grid.Column="2"
+                                      SelectedIndex="{Binding MoveMoveOut, Mode=TwoWay}">
+                                <ComboBoxItem Content="0 – Dừng"/>
+                                <ComboBoxItem Content="1 – Tiến theo line"/>
+                                <ComboBoxItem Content="2 – Lùi theo line"/>
+                                <ComboBoxItem Content="3 – Xoay trái 90"/>
+                                <ComboBoxItem Content="4 – Xoay phải 90"/>
+                                <ComboBoxItem Content="5 – Xoay 180"/>
+                                <ComboBoxItem Content="6 – Tiến dừng vạch ngang"/>
+                                <ComboBoxItem Content="7 – Lùi dừng vạch ngang"/>
+                                <ComboBoxItem Content="8 – Tiến dừng thẻ"/>
+                                <ComboBoxItem Content="9 – Lùi dừng thẻ"/>
+                                <ComboBoxItem Content="10 – Tiến tự do"/>
+                                <ComboBoxItem Content="11 – Lùi tự do"/>
+                                <ComboBoxItem Content="12 – Xoay trái tự do"/>
+                                <ComboBoxItem Content="13 – Xoay phải tự do"/>
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mode di chuyển yêu cầu"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SPEED MOVE"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.78"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SpeedMove, Mode=TwoWay}"
+                                          Minimum="0" Maximum="5000"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Vận tốc di chuyển AGV"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,220,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="MODE LIFT (out)"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.80"/>
+                            <ComboBox Grid.Column="2"
+                                      SelectedIndex="{Binding ModeLiftOut, Mode=TwoWay}">
+                                <ComboBoxItem Content="0 – Dừng/Reset"/>
+                                <ComboBoxItem Content="1 – Nâng"/>
+                                <ComboBoxItem Content="2 – Hạ"/>
+                            </ComboBox>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Mode bàn nâng yêu cầu"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="160,55,115,*" Margin="0,3">
+                            <TextBlock Grid.Column="0" Classes="label" Text="SPEED LIFT"/>
+                            <TextBlock Grid.Column="1" Classes="offset" Text="DB172.82"/>
+                            <NumericUpDown Grid.Column="2"
+                                          Value="{Binding SpeedLift, Mode=TwoWay}"
+                                          Minimum="0" Maximum="5000"/>
+                            <TextBlock Grid.Column="3" Classes="note" Text="Vận tốc bàn nâng"/>
+                        </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ════════════════════════════════════════════════════════════
+                 TAB 3 – DB172 Memory Map
+                 ════════════════════════════════════════════════════════════ -->
+            <TabItem Header="🗺️  DB172 Map">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="16,12" Spacing="4">
+                        <TextBlock Text="DB172 – AGV Tín hiệu điều khiển" FontSize="16"
+                                   FontWeight="Bold" Foreground="#CDD6F4" Margin="0,0,0,8"/>
+                        <Border Background="#313244" CornerRadius="8" Padding="14">
+                            <StackPanel Spacing="3">
+                                <TextBlock Foreground="#A6E3A1" FontFamily="Consolas,Monospace" FontSize="12"
+                                           Text="── INPUT area (AGV → PLC) ────────────────────────"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  0     FLAGS_IN      bit0=ON_OFF  bit1=START  bit2=CLEAR_ERROR  bit3=SAFETY_RELAY"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  2-5   VALUE_VOLTAGE float32 (big-endian)  [V]"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  6-9   VALUE_CURRENT float32 (big-endian)  [A]"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  10-11 SIGNAL_EMGS   int16  bit array"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  12-13 SIGNAL_BUMPER int16  bit array"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  14-15 STATUS_SENSOR int16  bit array"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  16-17 SAFETY_ZONE_1 int16  bit array"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  18-19 SAFETY_ZONE_2 int16  bit array"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  20-21 STATUS_RFID   int16  -1/0/1"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  22-23 CODE_RFID     int16"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  24-25 STATUS_MAGLINE int16 -1/1"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  26-27 VALUE_MAGLINE  int16 bit array"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  28-29 STATUS_MOTOR_1 int16 -1/1"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  30-31 WARN_MOTOR_1   int16"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  32-33 ERROR_MOTOR_1  int16"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  34-35 SPEED_1        int16  [rpm]"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  36-39 VALUE_ENCODER_1 int32 (big-endian)"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  40-41 STATUS_MOTOR_2 int16 -1/1"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  42-43 WARN_MOTOR_2   int16"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  44-45 ERROR_MOTOR_2  int16"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  46-47 SPEED_2        int16  [rpm]"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  48-51 VALUE_ENCODER_2 int32 (big-endian)"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  52-53 MOVE_MOVE_IN   int16  0-13"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  54-55 STATUS_MOVE    int16"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  56-57 MODE_LIFT_IN   int16  0=stop 1=up 2=down"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  58-59 STATUS_LIFT    int16  0-6"/>
+                                <TextBlock Foreground="#89DCEB" FontFamily="Consolas,Monospace" FontSize="12"
+                                           Margin="0,8,0,0"
+                                           Text="── OUTPUT area (PLC → AGV) ───────────────────────"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  60    FLAGS_OUT      bit0=WRITE_EMG  bit1=RESET  bit2=CHARGE  bit3=BRAKE"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  62-63 SOUND          int16  0-10"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  64-65 LIGHT          int16  0-10"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  66-67 FIELD_SET_1    int16  0-10"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  68-69 FIELD_SET_2    int16  0-10"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  70-71 CONTROL_MOTION int16  1/2"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  72-73 SPEED_MOTOR_1  int16  bánh trái"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  74-75 SPEED_MOTOR_2  int16  bánh phải"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  76-77 MOVE_MOVE_OUT  int16  0-13"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  78-79 SPEED_MOVE     int16"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  80-81 MODE_LIFT_OUT  int16  0/1/2"/>
+                                <TextBlock Foreground="#CDD6F4" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Text="Byte  82-83 SPEED_LIFT     int16"/>
+                                <TextBlock Foreground="#585B70" FontFamily="Consolas,Monospace" FontSize="11"
+                                           Margin="0,4,0,0"
+                                           Text="Bytes 84-255  (reserved / expansion)"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+    </DockPanel>
+</Window>

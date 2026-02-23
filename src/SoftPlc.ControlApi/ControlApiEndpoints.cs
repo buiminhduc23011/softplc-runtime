@@ -78,6 +78,28 @@ public static class ControlApiEndpoints
             }
         });
 
+        // ── Write bytes to DataBlock ────────────────────────────────────────────
+        app.MapPut("/memory/db/{id:int}", (PlcEngine engine, int id, WriteDbPayload payload) =>
+        {
+            if (payload.Bytes is null || payload.Bytes.Length == 0)
+                return Results.BadRequest("bytes array must not be empty");
+
+            try
+            {
+                var raw = payload.Bytes.Select(b => (byte)(b & 0xFF)).ToArray();
+                engine.Memory.WriteDbArea(id, payload.Offset, raw);
+                return Results.Ok(new { DB = id, Offset = payload.Offset, BytesWritten = raw.Length });
+            }
+            catch (KeyNotFoundException)
+            {
+                return Results.NotFound($"DB{id} does not exist");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return Results.BadRequest("Offset out of range");
+            }
+        });
+
         // ── Memory – Inputs ────────────────────────────────────────────────────
         app.MapGet("/memory/i/{byteOffset:int}", (PlcEngine engine, int byteOffset, int count = 1) =>
         {

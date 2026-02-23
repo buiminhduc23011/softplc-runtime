@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/SoftPlc.AgvSimulator/SoftPlc.AgvSimulator.csproj" />
     <Project Path="src/SoftPlc.ControlApi/SoftPlc.ControlApi.csproj" />
     <Project Path="src/SoftPlc.Core/SoftPlc.Core.csproj" />
     <Project Path="src/SoftPlc.Host/SoftPlc.Host.csproj" />

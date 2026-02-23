@@ -16,3 +16,6 @@ public sealed record ScanDiagDto(
     long  LastScanTimeUs,
     long  OverrunCount,
     int   ScanTimeMs);
+
+/// <summary>Body for PUT /memory/db/{id} – write raw bytes into a Data Block.</summary>
+public sealed record WriteDbPayload(int Offset, int[] Bytes);
