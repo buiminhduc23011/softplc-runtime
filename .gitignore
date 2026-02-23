@@ -105,3 +105,6 @@ yarn-error.log*
 # Logs
 *.log
 logs/
+
+# Root-level native DLLs (test artifacts)
+/*.dll
