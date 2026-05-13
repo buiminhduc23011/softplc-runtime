@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/ducbu/**)",
+      "Read(//c/Users/ducbu/.nuget/**)",
+      "Read(//c//**)",
+      "Bash(dotnet tool list:*)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(dotnet publish:*)",
+      "Bash(tar:*)"
+    ]
+  }
+}

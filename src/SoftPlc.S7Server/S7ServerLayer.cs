@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using Serilog;
 using Snap7;
@@ -13,8 +14,13 @@ namespace SoftPlc.S7Server;
 /// </summary>
 public sealed class S7ServerLayer : IDisposable
 {
+    // ── Direct P/Invoke to snap7.dll (bypasses wrapper's ref byte marshaling) ──
+    [DllImport("snap7.dll")]
+    private static extern int Srv_RegisterArea(IntPtr server, int areaCode, int index, IntPtr pUsrData, int size);
+
     // ── snap7 server ──────────────────────────────────────────────────────────
     private readonly Snap7.S7Server _server = new();
+    private readonly IntPtr _serverHandle;
 
     // ── PlcMemory reference ───────────────────────────────────────────────────
     private readonly SoftPlc.Core.PlcMemory _memory;
@@ -58,6 +64,10 @@ public sealed class S7ServerLayer : IDisposable
     {
         _memory = memory;
 
+        // Extract native server handle via reflection (wrapper stores it as 'server' field)
+        _serverHandle = ExtractServerHandle(_server);
+        Log.Debug("[S7Server] Native handle: 0x{Handle:X}", _serverHandle);
+
         // Allocate & pin buffers
         _peBuffer = new byte[SoftPlc.Core.PlcMemory.InputSize];
         _paBuffer = new byte[SoftPlc.Core.PlcMemory.OutputSize];
@@ -71,10 +81,10 @@ public sealed class S7ServerLayer : IDisposable
         int mc = maxClients;
         _server.SetParam(S7Consts.p_i32_MaxClients, ref mc);
 
-        // Register fixed areas
-        _server.RegisterArea(Snap7.S7Server.srvAreaPE, 0, ref _peBuffer[0], _peBuffer.Length);
-        _server.RegisterArea(Snap7.S7Server.srvAreaPA, 0, ref _paBuffer[0], _paBuffer.Length);
-        _server.RegisterArea(Snap7.S7Server.srvAreaMK, 0, ref _mkBuffer[0], _mkBuffer.Length);
+        // Register fixed areas using direct P/Invoke with pinned IntPtr
+        RegisterAreaDirect(Snap7.S7Server.srvAreaPE, 0, _pePin, _peBuffer.Length);
+        RegisterAreaDirect(Snap7.S7Server.srvAreaPA, 0, _paPin, _paBuffer.Length);
+        RegisterAreaDirect(Snap7.S7Server.srvAreaMK, 0, _mkPin, _mkBuffer.Length);
 
         // Keep callback delegate alive
         _eventsCallback = OnServerEvent;
@@ -82,6 +92,45 @@ public sealed class S7ServerLayer : IDisposable
 
         // Sync timer: 5ms
         _syncTimer = new Timer(SyncBuffers, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(5));
+    }
+
+    /// <summary>Extract the native IntPtr handle from the Snap7.S7Server wrapper via reflection.</summary>
+    private static IntPtr ExtractServerHandle(Snap7.S7Server server)
+    {
+        // Try common field names used by Snap7 .NET wrappers
+        var type = server.GetType();
+        foreach (var name in new[] { "server", "Server", "_server", "hServer", "Handle" })
+        {
+            var field = type.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            if (field != null && field.FieldType == typeof(IntPtr))
+            {
+                var handle = (IntPtr)field.GetValue(server)!;
+                if (handle != IntPtr.Zero) return handle;
+            }
+        }
+        // Fallback: search all IntPtr fields
+        foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
+        {
+            if (field.FieldType == typeof(IntPtr))
+            {
+                var handle = (IntPtr)field.GetValue(server)!;
+                if (handle != IntPtr.Zero)
+                {
+                    Log.Debug("[S7Server] Found native handle in field '{Name}'", field.Name);
+                    return handle;
+                }
+            }
+        }
+        throw new InvalidOperationException("Cannot extract native server handle from Snap7.S7Server wrapper");
+    }
+
+    /// <summary>Register area using direct P/Invoke with a pinned GCHandle (guaranteed stable pointer).</summary>
+    private void RegisterAreaDirect(int areaCode, int index, GCHandle pin, int size)
+    {
+        var ptr = pin.AddrOfPinnedObject();
+        var rc = Srv_RegisterArea(_serverHandle, areaCode, index, ptr, size);
+        if (rc != 0)
+            Log.Error("[S7Server] Srv_RegisterArea failed: area={Area}, index={Index}, rc={Rc}", areaCode, index, rc);
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -153,7 +202,8 @@ public sealed class S7ServerLayer : IDisposable
         _dbPins[dbNumber]    = pin;
         _dbShadow[dbNumber]  = new byte[size];
 
-        _server.RegisterArea(Snap7.S7Server.srvAreaDB, dbNumber, ref buf[0], size);
+        // Register using direct P/Invoke with pinned pointer
+        RegisterAreaDirect(Snap7.S7Server.srvAreaDB, dbNumber, pin, size);
         Log.Information("[S7Server] Registered DB{Db} ({Size} bytes)", dbNumber, size);
     }
 
@@ -223,54 +273,69 @@ public sealed class S7ServerLayer : IDisposable
     }
 
     /// <summary>
-    /// Sync each registered DB: snap7 buffer ↔ PlcMemory via shadow-merge.
-    /// A shadow buffer stores the last-synced state. Changes on either side
-    /// (PlcMemory or snap7) are detected byte-by-byte vs the shadow;
-    /// local (PlcMemory / ViewModel) writes take priority on conflict.
+    /// Sync each registered DB: PlcMemory is the source of truth.
+    ///
+    /// 1. Detect S7 client writes (snap7 buffer changed vs shadow) and apply
+    ///    only those bytes to PlcMemory (PlcMemory wins on conflict).
+    /// 2. Push current PlcMemory → snap7 buffer so S7 clients can read.
+    /// 3. Update shadow to current PlcMemory state.
+    ///
+    /// This avoids the old full-buffer write-back that could overwrite
+    /// concurrent ViewModel writes with stale data.
     /// </summary>
     private void SyncDataBlocks()
     {
         foreach (var (dbNum, snap7Buf) in _dbBuffers)
         {
-            var size = snap7Buf.Length;
-
-            // 1. Read current snap7 state
-            _server.LockArea(Snap7.S7Server.srvAreaDB, dbNum);
-            var snap7Data = new byte[size];
-            Buffer.BlockCopy(snap7Buf, 0, snap7Data, 0, size);
-            _server.UnlockArea(Snap7.S7Server.srvAreaDB, dbNum);
-
-            // 2. Read current PlcMemory state
-            var memData = _memory.ReadDbArea(dbNum, 0, size);
-
-            // 3. Get shadow (last-synced snapshot)
+            var size   = snap7Buf.Length;
             var shadow = _dbShadow[dbNum];
 
-            // 4. Merge byte-by-byte
-            var merged = new byte[size];
-            for (int i = 0; i < size; i++)
-            {
-                bool memChanged  = memData[i]   != shadow[i];
-                bool snap7Changed = snap7Data[i] != shadow[i];
-
-                if (memChanged)
-                    merged[i] = memData[i];     // local (ViewModel) wins
-                else if (snap7Changed)
-                    merged[i] = snap7Data[i];   // remote (S7 client) wins
-                else
-                    merged[i] = shadow[i];      // no change
-            }
-
-            // 5. Push merged result to snap7
+            // ── 1. Snapshot snap7 buffer ──────────────────────────────────
             _server.LockArea(Snap7.S7Server.srvAreaDB, dbNum);
-            Buffer.BlockCopy(merged, 0, snap7Buf, 0, size);
+            var snap7Snapshot = new byte[size];
+            Buffer.BlockCopy(snap7Buf, 0, snap7Snapshot, 0, size);
             _server.UnlockArea(Snap7.S7Server.srvAreaDB, dbNum);
 
-            // 6. Push merged result to PlcMemory
-            _memory.WriteDbArea(dbNum, 0, merged);
+            // ── 2. Detect & apply S7 client writes to PlcMemory ──────────
+            //    Only runs when an S7 client actually wrote something.
+            //    PlcMemory-side changes win on conflict (local priority).
+            bool hasRemoteWrite = false;
+            for (int i = 0; i < size; i++)
+            {
+                if (snap7Snapshot[i] != shadow[i])
+                {
+                    hasRemoteWrite = true;
+                    break;
+                }
+            }
 
-            // 7. Update shadow
-            Buffer.BlockCopy(merged, 0, shadow, 0, size);
+            if (hasRemoteWrite)
+            {
+                var mem = _memory.ReadDbArea(dbNum, 0, size);
+                bool anyApplied = false;
+                for (int i = 0; i < size; i++)
+                {
+                    if (snap7Snapshot[i] != shadow[i] && mem[i] == shadow[i])
+                    {
+                        // S7 client changed this byte AND PlcMemory didn't → apply
+                        mem[i] = snap7Snapshot[i];
+                        anyApplied = true;
+                    }
+                    // else: PlcMemory already changed (or both) → PlcMemory wins
+                }
+                if (anyApplied)
+                    _memory.WriteDbArea(dbNum, 0, mem);
+            }
+
+            // ── 3. Push PlcMemory → snap7 buffer ─────────────────────────
+            var current = _memory.ReadDbArea(dbNum, 0, size);
+
+            _server.LockArea(Snap7.S7Server.srvAreaDB, dbNum);
+            Buffer.BlockCopy(current, 0, snap7Buf, 0, size);
+            _server.UnlockArea(Snap7.S7Server.srvAreaDB, dbNum);
+
+            // ── 4. Update shadow ─────────────────────────────────────────
+            Buffer.BlockCopy(current, 0, shadow, 0, size);
         }
     }
 
